@@ -1,0 +1,15 @@
+package MyFrame;
+
+import java.awt.*;
+import javax.swing.*;
+
+/**
+ * @version 1.0 2018-03-13
+ * @author Wilson Song
+ * @ The Frame of MyNotePad
+ */
+
+public class MyFrame extends JFrame {
+	
+
+}

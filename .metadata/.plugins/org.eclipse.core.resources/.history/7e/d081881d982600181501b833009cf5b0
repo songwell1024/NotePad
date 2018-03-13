@@ -1,0 +1,6 @@
+package NotePad;
+import java.awt.*;
+
+public class NotePad {
+
+}
