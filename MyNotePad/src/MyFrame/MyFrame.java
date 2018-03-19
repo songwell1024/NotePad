@@ -20,7 +20,18 @@ import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import javax.swing.event.MenuEvent;
 import javax.swing.event.MenuListener;
-
+import javax.swing.JCheckBox;
+import javax.swing.JCheckBoxMenuItem;
+import javax.swing.event.UndoableEditEvent;
+import javax.swing.event.UndoableEditListener;
+import javax.swing.undo.UndoManager;
+import javax.swing.undo.CannotUndoException;
+import javax.swing.JPopupMenu;
+import javax.swing.KeyStroke;
+import javax.swing.JLabel;
+import javax.swing.JRadioButton;
+import javax.swing.JTextArea;
+import javax.swing.JTextField;
 
 /**
  * @version 1.0 2018-03-13
@@ -30,12 +41,16 @@ import javax.swing.event.MenuListener;
 
 public class MyFrame extends JFrame implements ActionListener, DocumentListener{
 	
-	private JMenu fileMenu, editMenu, formatMenu, viewMenu, helpMenu;
-	//ptivate
-	
+	JTextArea editArea;  //文本编辑区
+	String oldText;//存放编辑区原来的内容，用于比较文本是否有改动   
+	//撤销管理器
+	protected UndoManager undo = new UndoManager();    
+    protected UndoableEditListener undoHandler = new UndoHandler();  
+    
 	public MyFrame() {
 		initFrame();
 		initMenu();
+		initTextEditArea();
 	}
 	
 	public void initFrame(){  
@@ -62,7 +77,7 @@ public class MyFrame extends JFrame implements ActionListener, DocumentListener{
 		setJMenuBar(menuBar);  //将菜单栏添加到框架上
 
 		//创建文件菜单
-		fileMenu = new JMenu("文件(F)");
+		JMenu fileMenu = new JMenu("文件(F)");
 		fileMenu.setMnemonic('F');  //设置快捷键Alt+F
 		menuBar.add(fileMenu);
 		
@@ -85,6 +100,7 @@ public class MyFrame extends JFrame implements ActionListener, DocumentListener{
 		JMenuItem fileSaveAsItem = new JMenuItem("另存为(A)...");
 		fileSaveAsItem.addActionListener(this);
 		fileMenu.add(fileSaveAsItem);
+		fileMenu.addSeparator();
 		
 		JMenuItem filePageSet = new JMenuItem("页面设置(U)...");
 		filePageSet.addActionListener(this);
@@ -94,6 +110,7 @@ public class MyFrame extends JFrame implements ActionListener, DocumentListener{
 		filePrint.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_P, ActionEvent.CTRL_MASK));
 		filePrint.addActionListener(this);
 		fileMenu.add(filePrint);
+		fileMenu.addSeparator();
 		
 		JMenuItem fileExitItem = new JMenuItem("退出“X");
 		fileExitItem.addActionListener(this);
@@ -120,11 +137,183 @@ public class MyFrame extends JFrame implements ActionListener, DocumentListener{
 		JMenuItem editUndo = new JMenuItem("撤销(U)");
 		editUndo.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_U, ActionEvent.CTRL_MASK));
 		editUndo.addActionListener(this);
-		editUndo.setEnabled(false);  //设置没有建立文本之前是不可用的
+		editUndo.setEnabled(false);  //设置没有写入文字之前不可用
 		editMenu.add(editUndo);
 		
+		JMenuItem editCut = new JMenuItem("剪切(T)");
+		editCut.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_X, ActionEvent.CTRL_MASK));
+		editCut.addActionListener(this);
+		editCut.setEnabled(false);
+		editMenu.add(editCut);
 		
-				
+		JMenuItem editCopy = new JMenuItem("复制(C)");
+		editCopy.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_C, ActionEvent.CTRL_MASK));
+		editCopy.addActionListener(this);
+		editCopy.setEnabled(false);
+		editMenu.add(editCopy);
+		
+		JMenuItem editPaste = new JMenuItem("粘贴(P)");
+		editPaste.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_V, ActionEvent.CTRL_MASK));
+		editPaste.addActionListener(this);
+		editPaste.setEnabled(false);
+		editMenu.add(editPaste);
+		
+		JMenuItem editDelete = new JMenuItem("删除(L)");
+		editDelete.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_DELETE, 0));
+		editDelete.addActionListener(this);
+		editMenu.add(editDelete);
+		editMenu.addSeparator();
+		
+		JMenuItem editFind = new JMenuItem("查找(F)");
+		editFind.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_F, ActionEvent.CTRL_MASK));
+		editFind.addActionListener(this);
+		editMenu.add(editFind);
+		
+		JMenuItem editFindNext = new JMenuItem("查找下一个(N)");
+		editFindNext.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_F3, 0));
+		editFindNext.addActionListener(this);
+		editMenu.add(editFindNext);
+		
+		JMenuItem editReplace = new JMenuItem("替换(R)...");
+		editReplace.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_H, ActionEvent.CTRL_MASK));
+		editReplace.addActionListener(this);
+		editMenu.add(editReplace);
+		
+		JMenuItem editGoTo = new JMenuItem("转到(G)...");
+		editGoTo.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_G, ActionEvent.CTRL_MASK));
+		editGoTo.addActionListener(this);
+		editMenu.add(editGoTo);
+		editMenu.addSeparator();
+		
+		JMenuItem editSelectAll = new JMenuItem("全选(A)");
+		editSelectAll.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_A, ActionEvent.CTRL_MASK));
+		editSelectAll.addActionListener(this);
+		editMenu.add(editSelectAll);
+		
+		JMenuItem editDate = new JMenuItem("时间/日期(D)");
+		editDate.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_F5, 0));
+		editDate.addActionListener(this);
+		editMenu.add(editDate);
+		
+		//创建格式菜单
+		JMenu formatMenu = new JMenu("格式(O)");
+		formatMenu.setMnemonic('O');
+		menuBar.add(formatMenu);
+		
+		JMenuItem formatLineWrap = new JMenuItem("自动换行(W)");
+		formatLineWrap.setMnemonic('W');
+		//formatLineWrap.setState(true);
+		formatLineWrap.addActionListener(this);
+		formatMenu.add(formatLineWrap);
+		
+		JMenuItem formatFont = formatMenu.add(new JMenuItem("字体(F)"));
+		formatFont.addActionListener(this);
+		
+		//创建查看菜单
+		JMenu viewMenu = menuBar.add(new JMenu("查看(V)"));
+		viewMenu.setMnemonic('V');
+		
+		JMenuItem stateItem = viewMenu.add(new JCheckBoxMenuItem("状态栏(S)", true));  //状态栏一开始就被选中
+		stateItem.addActionListener(this);
+	
+		
+		//创建帮助菜单
+		JMenu helpMenu =menuBar.add( new JMenu("帮助(H)"));
+		helpMenu.setMnemonic('H');
+		
+		JMenuItem lookHelp = helpMenu.add(new JMenuItem("查看帮助(H)"));
+		lookHelp.addActionListener(this);
+		helpMenu.addSeparator();
+		
+		JMenuItem aboutNote = helpMenu.add(new JMenuItem("关于笔记本(A)"));
+		aboutNote.addActionListener(this);
+	}
+	
+	//初始化文本编辑区
+	public void initTextEditArea() {
+		//创建文本编辑区
+		editArea = new JTextArea(20,50);  //20列50行的文本区
+		//初始化滚动条
+		JScrollPane scroller = new JScrollPane(editArea);
+		scroller.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_ALWAYS);
+		this.add(scroller,BorderLayout.CENTER);    //在窗口中添加文本编辑区
+		editArea.setWrapStyleWord(true);  //文字长度超过一行时自动换行
+		editArea.setLineWrap(true);  //文本编辑区默认自动换行
+		oldText = editArea.getText();   //获取文本编辑区的内容
+		//撤销动作添加事件监听
+		editArea.getDocument().addUndoableEditListener(undoHandler);
+		editArea.getDocument().addDocumentListener(this);
+		
+		//创建右键弹出菜单
+		JPopupMenu popupMenu = new JPopupMenu();
+		
+		JMenuItem popupMenuUndo = new JMenuItem("撤销(U)");
+		popupMenuUndo.addActionListener(this);
+		popupMenuUndo.setEnabled(false);   
+		popupMenu.add(popupMenuUndo);
+		popupMenu.addSeparator();
+		
+		JMenuItem popupMenuCut = new JMenuItem("剪切(T)");
+		popupMenuCut.addActionListener(this);
+		popupMenu.add(popupMenuCut);
+		
+		JMenuItem popupMenuCopy = new JMenuItem("复制(C)");
+		popupMenuCopy.addActionListener(this);
+		popupMenu.add(popupMenuCopy);
+		
+		JMenuItem popupMenuPaste = new JMenuItem("粘贴(P)");
+		popupMenuPaste.addActionListener(this);
+		popupMenu.add(popupMenuPaste);
+		
+		JMenuItem popupMenuDelete = new JMenuItem("删除(D)");
+		popupMenuDelete.addActionListener(this);
+		popupMenu.add(popupMenuDelete);
+		popupMenu.addSeparator();
+		
+		JMenuItem popupMenuSelectAll = new JMenuItem("全选(A)");
+		popupMenuSelectAll.addActionListener(this);
+		popupMenu.add(popupMenuSelectAll);
+		
+		//文本编辑区注册鼠标右键事件  //mouse必须写两遍，因为点击释放两个状态
+		editArea.addMouseListener(new MouseAdapter() {
+			public void mousePressed(MouseEvent e) {
+				if(e.isPopupTrigger()) {    //判断是否是编辑区触发的鼠标右键事件,弹出菜单触发器
+					popupMenu.show(e.getComponent(), e.getX(), e.getY());  //在组件调用者的坐标空间中的位置 X、Y 显示弹出菜单
+				}
+				checkMenuItemEnabled();   //设置菜单功能的可用性    
+				editArea.requestFocus();  //编辑区获取焦点
+			}
+			public void mouseReleased(MouseEvent e) {
+				if(e.isPopupTrigger()) {    //判断是否是编辑区触发的鼠标右键事件,弹出菜单触发器
+					popupMenu.show(e.getComponent(), e.getX(), e.getY());  //在组件调用者的坐标空间中的位置 X、Y 显示弹出菜单
+				}
+				checkMenuItemEnabled();   //设置菜单功能的可用性    
+				editArea.requestFocus();  //编辑区获取焦点
+			}
+		});
+		//component.setComponentPopupMenu(popupMenu);
+		
+		//创建和添加状态栏
+		JPanel panel1 = new JPanel();
+		JLabel statusLabel1 = new JLabel("");
+		JLabel statusLabel2 = new JLabel("文件状态");
+		
+		panel1.add(statusLabel1);
+		panel1.add(statusLabel2);  
+		
+		this.add(panel1, BorderLayout.SOUTH);//向窗口添加状态栏标签  
+		
+		//添加窗口监听器
+		addWindowListener(new WindowAdapter() {
+			public void windowClosing(WindowEvent e) {
+				exitWindowChoose();
+			}
+		});
+		
+		checkMenuItemEnabled();
+		editArea.requestFocus();
+		
+		
 	}
 	
 	public void actionPerformed(ActionEvent e) {  
@@ -146,4 +335,31 @@ public class MyFrame extends JFrame implements ActionListener, DocumentListener{
 	public void checkMenuItemEnabled() {
 		
 	}
+	
+	public void exitWindowChoose() {
+		editArea.requestFocus();   //定到文本编辑区
+		String currentText = editArea.getText();   //获取当前编辑区的内容
+		if(currentText.equals(oldText)) {
+			//setMemory();
+			System.exit(0);
+		}
+		else {
+			int exitChoose = JOptionPane.showConfirmDialog(this, "文件尚未保存", 
+					"退出提示", JOptionPane.YES_NO_CANCEL_OPTION);
+			if(exitChoose == JOptionPane.YES_OPTION) {
+				
+			}
+		}
+	}
+	
+	//撤销类，实现接口UndoableEditListener的类UndoHandler(与撤销操作有关)
+	class UndoHandler implements UndoableEditListener    
+	{     
+	    public void undoableEditHappened(UndoableEditEvent uee)    
+	    {     
+	        undo.addEdit(uee.getEdit());    
+	    }    
+	}  
 }
+
+
